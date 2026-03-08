@@ -69,22 +69,12 @@ export default function App() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const folderInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Reset to dashboard and clear preview state on every app mount (refresh)
+  // Reset to dashboard on every app mount (refresh) but DO NOT delete files
   React.useEffect(() => {
     setView("dashboard");
     setCurrentProject(null);
     setActiveTab("editor");
     setPreviewPath("/");
-    
-    const clearProjects = async () => {
-      try {
-        await fetch("/api/projects/clear", { method: "POST" });
-        console.log("🧹 Environment refreshed: AI projects cleared and returned to dashboard.");
-      } catch (err) {
-        console.error("Failed to clear projects on mount", err);
-      }
-    };
-    clearProjects();
     
     // Clear any potential session storage that might interfere
     sessionStorage.clear();

@@ -97,21 +97,6 @@ async function startServer() {
   };
 
   const PROJECTS_DIR = path.join(__dirname, "projects");
-  
-  // Auto-cleanup on server start: Wipe all AI-generated projects to keep environment fresh
-  try {
-    if (fsSync.existsSync(PROJECTS_DIR)) {
-      const entries = await fs.readdir(PROJECTS_DIR);
-      for (const entry of entries) {
-        const fullPath = path.join(PROJECTS_DIR, entry);
-        await fs.rm(fullPath, { recursive: true, force: true });
-      }
-      console.log("🧹 Projects directory cleared on startup.");
-    }
-  } catch (err) {
-    console.error("Failed to clear projects on startup:", err);
-  }
-
   await fs.mkdir(PROJECTS_DIR, { recursive: true });
 
   const isSafePath = (filePath: string) => {
@@ -155,19 +140,6 @@ async function startServer() {
     }
   });
 
-  // API: Clear all projects
-  app.post("/api/projects/clear", async (req, res) => {
-    try {
-      const entries = await fs.readdir(PROJECTS_DIR);
-      for (const entry of entries) {
-        const fullPath = path.join(PROJECTS_DIR, entry);
-        await fs.rm(fullPath, { recursive: true, force: true });
-      }
-      res.json({ success: true, message: "All projects cleared" });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to clear projects" });
-    }
-  });
 
   // API: List files
   app.get("/api/files", async (req, res) => {
@@ -221,7 +193,7 @@ async function startServer() {
       res.json(fileTree);
     } catch (error) {
       console.error("Failed to list files:", error);
-      res.status(500).json({ error: "Failed to list files" });
+      res.json([]); // Return empty array instead of 500 to prevent frontend crash
     }
   });
 

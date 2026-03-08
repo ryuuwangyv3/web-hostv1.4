@@ -33,7 +33,7 @@ interface FileTreeProps {
 }
 
 export const FileTree: React.FC<FileTreeProps> = ({ 
-  nodes, 
+  nodes = [], 
   onFileSelect, 
   onDelete, 
   onRename, 
@@ -41,6 +41,10 @@ export const FileTree: React.FC<FileTreeProps> = ({
   onCreateFolder,
   selectedPath 
 }) => {
+  if (!Array.isArray(nodes)) {
+    return <div className="p-4 text-white/30 text-xs italic text-center">No files found</div>;
+  }
+
   return (
     <div className="space-y-1">
       {nodes.map((node) => (
