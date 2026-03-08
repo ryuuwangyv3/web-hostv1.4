@@ -262,6 +262,12 @@ export const ChatTab: React.FC<ChatTabProps> = ({ currentCode, fileName, fileTre
 - Jangan hanya berasumsi berdasarkan nama file, verifikasi isinya untuk akurasi 100%.
 - Jika pengguna bertanya tentang sesuatu yang memerlukan data eksternal (berita, dokumentasi API terbaru), gunakan Search Grounding secara otomatis.
 
+[SAFETY PROTOCOL: SANDBOX ISOLATION]
+- Kamu DILARANG KERAS menulis file langsung di root folder (/) kecuali Kamu sedang memperbaiki sistem IDE atas permintaan eksplisit.
+- SETIAP website atau aplikasi yang Kamu buat WAJIB diletakkan di dalam folder 'projects/'. Contoh: 'projects/my-web-app/index.html'.
+- Jika Kamu menulis 'index.html' di root (/), itu akan MERUSAK IDE Akasha dan menyebabkan crash. Selalu gunakan subfolder di dalam 'projects/'.
+- Jika pengguna meminta "buatkan website", buatkan folder baru di dalam 'projects/' terlebih dahulu.
+
 STRATEGI EKSEKUSI (PROJECT-AWARE LOGIC):
 Kamu harus cerdas dalam membedakan jenis proyek sebelum mengambil tindakan:
 
@@ -382,14 +388,24 @@ PRINSIP KERJA:
                   result = data.content ? { content: data.content } : { error: data.error || "File not found" };
                 } else if (call.name === "write_file") {
                   const { path, content } = call.args as any;
-                  const res = await fetch("/api/file", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ path, content }),
-                  });
-                  const data = await res.json();
-                  result = data.success ? { success: true } : { error: data.error || "Failed to write file" };
-                  window.dispatchEvent(new CustomEvent("AKASHA_REFRESH_FILES"));
+                  
+                  // Safety Guard: Prevent overwriting system files
+                  const systemFiles = ["index.html", "server.ts", "package.json", "vite.config.ts", "tsconfig.json", ".env"];
+                  const isRootFile = !path.includes("/") || path.startsWith("./");
+                  const fileName = path.split("/").pop();
+                  
+                  if (isRootFile && systemFiles.includes(fileName)) {
+                    result = { error: `AKSES DITOLAK: File '${path}' adalah file sistem vital. Menulis ke sini dapat merusak IDE. Silakan simpan pekerjaan Kamu di dalam folder 'projects/'.` };
+                  } else {
+                    const res = await fetch("/api/file", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ path, content }),
+                    });
+                    const data = await res.json();
+                    result = data.success ? { success: true } : { error: data.error || "Failed to write file" };
+                    window.dispatchEvent(new CustomEvent("AKASHA_REFRESH_FILES"));
+                  }
                 } else if (call.name === "list_files") {
                   const dirPath = (call.args as any).path || "";
                   const res = await fetch(`/api/files?root=${encodeURIComponent(dirPath)}`);

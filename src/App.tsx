@@ -48,6 +48,7 @@ export default function App() {
   const [selectedFile, setSelectedFile] = React.useState<string | null>(null);
   const [code, setCode] = React.useState("");
   const [originalCode, setOriginalCode] = React.useState("");
+  const [apiKey, setApiKey] = React.useState<string>("");
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
@@ -62,7 +63,7 @@ export default function App() {
   const [sandboxOpen, setSandboxOpen] = React.useState(false);
   const [githubUrl, setGithubUrl] = React.useState("");
   const [extractUrl, setExtractUrl] = React.useState("");
-  const [previewPath, setPreviewPath] = React.useState("/");
+  const [previewPath, setPreviewPath] = React.useState("about:blank");
   const [previewMode, setPreviewMode] = React.useState<"desktop" | "mobile" | "tablet">("desktop");
   const [errorLogs, setErrorLogs] = React.useState<string[]>([]);
 
@@ -74,7 +75,23 @@ export default function App() {
     setView("dashboard");
     setCurrentProject(null);
     setActiveTab("editor");
-    setPreviewPath("/");
+    setPreviewPath("about:blank");
+    
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch("/api/config");
+        const data = await res.json();
+        if (data.GEMINI_API_KEY) {
+          setApiKey(data.GEMINI_API_KEY);
+          // Also set to process.env for components that expect it
+          (window as any).process = (window as any).process || { env: {} };
+          (window as any).process.env.GEMINI_API_KEY = data.GEMINI_API_KEY;
+        }
+      } catch (err) {
+        console.error("Failed to fetch config", err);
+      }
+    };
+    fetchConfig();
     
     // Clear any potential session storage that might interfere
     sessionStorage.clear();
@@ -603,7 +620,7 @@ export default function App() {
     setView(project ? "editor" : "dashboard");
     setSelectedFile(null);
     setCode("");
-    setPreviewPath(project ? "/" + project.path + "/" : "/");
+    setPreviewPath(project ? "/" + project.path + "/" : "about:blank");
     if (project) {
       fetchFiles(project.path);
     }
@@ -977,9 +994,9 @@ export default function App() {
 
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => setPreviewPath("/")}
+                        onClick={() => setPreviewPath(currentProject ? "/" + currentProject.path + "/" : "about:blank")}
                         className="p-2 hover:bg-white/10 rounded-md text-white/60 transition-colors"
-                        title="Go to App Home"
+                        title="Go to Project Home"
                       >
                         <Home size={14} />
                       </button>

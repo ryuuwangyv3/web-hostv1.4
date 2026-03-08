@@ -8,6 +8,9 @@ import multer from "multer";
 import axios from "axios";
 import AdmZip from "adm-zip";
 import * as git from "isomorphic-git";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,8 +85,15 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.json({ limit: '5000mb' }));
+  app.use(express.urlencoded({ limit: '5000mb', extended: true }));
+
+  // API: Get Config (Expose API Key to frontend safely in this environment)
+  app.get("/api/config", (req, res) => {
+    res.json({
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.API_KEY || ""
+    });
+  });
 
   // Security: Files to ignore at root or anywhere
   const IGNORED_PATTERNS = [".git", ".next", ".DS_Store"];
@@ -99,7 +109,7 @@ async function startServer() {
   const PROJECTS_DIR = path.join(__dirname, "projects");
   await fs.mkdir(PROJECTS_DIR, { recursive: true });
 
-  const isSafePath = (filePath: string) => {
+  const isSafePath = (filePath: string, mode: "read" | "write" = "read") => {
     if (!filePath) return false;
     // Normalize path: remove leading slashes and resolve
     const normalizedPath = filePath.replace(/^\/+/, "");
@@ -108,6 +118,17 @@ async function startServer() {
     const isUnderRoot = resolvedPath.startsWith(__dirname);
     const isUnderProjects = resolvedPath.startsWith(PROJECTS_DIR);
     
+    // Safety Guard: Prevent overwriting critical system files via API
+    if (mode === "write") {
+      const systemFiles = ["index.html", "server.ts", "package.json", "vite.config.ts", "tsconfig.json", ".env"];
+      const fileName = path.basename(normalizedPath);
+      const isRootFile = !normalizedPath.includes("/") || normalizedPath.startsWith("./");
+      
+      if (isRootFile && systemFiles.includes(fileName)) {
+        return false;
+      }
+    }
+
     return (isUnderRoot || isUnderProjects) && !isIgnored(normalizedPath);
   };
 
@@ -197,17 +218,27 @@ async function startServer() {
     }
   });
 
-  // API: Read file
+  // API: Read file (with streaming support for large files)
   app.get("/api/file", async (req, res) => {
     const filePath = req.query.path as string;
-    if (!filePath || !isSafePath(filePath)) {
+    if (!filePath || !isSafePath(filePath, "read")) {
       return res.status(403).json({ error: "Access denied or invalid path" });
     }
 
     try {
       const fullPath = path.resolve(__dirname, filePath);
-      const content = await fs.readFile(fullPath, "utf-8");
-      res.json({ content });
+      const stats = await fs.stat(fullPath);
+      
+      // If file is larger than 10MB, stream it instead of reading into memory
+      if (stats.size > 10 * 1024 * 1024) {
+        res.setHeader('Content-Length', stats.size);
+        res.setHeader('Content-Type', 'application/octet-stream');
+        const stream = fsSync.createReadStream(fullPath);
+        stream.pipe(res);
+      } else {
+        const content = await fs.readFile(fullPath, "utf-8");
+        res.json({ content });
+      }
     } catch (error) {
       res.status(500).json({ error: "Failed to read file" });
     }
@@ -216,7 +247,7 @@ async function startServer() {
   // API: Write file
   app.post("/api/file", async (req, res) => {
     const { path: filePath, content } = req.body;
-    if (!filePath || !isSafePath(filePath)) {
+    if (!filePath || !isSafePath(filePath, "write")) {
       return res.status(403).json({ error: "Access denied or invalid path" });
     }
 

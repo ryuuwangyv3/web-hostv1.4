@@ -144,7 +144,7 @@ export const SandboxModal: React.FC<SandboxModalProps> = ({ isOpen, onClose }) =
             </div>
             <iframe 
               ref={iframeRef}
-              src="/" 
+              src="about:blank" 
               className="flex-1 w-full border-none"
               title="Sandbox Preview"
             />

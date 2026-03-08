@@ -1,10 +1,30 @@
 import React from "react";
-import { Settings as SettingsIcon, Monitor, Type, Shield, Zap, Globe } from "lucide-react";
+import { Settings as SettingsIcon, Monitor, Type, Shield, Zap, Globe, Database } from "lucide-react";
 import { motion } from "motion/react";
 import { useSettings } from "../contexts/SettingsContext";
+import { vfs } from "../lib/vfs";
 
 export const SettingsTab: React.FC = () => {
   const { settings, updateSettings } = useSettings();
+  const [storageInfo, setStorageInfo] = React.useState<{ usage: number; quota: number }>({ usage: 0, quota: 0 });
+
+  React.useEffect(() => {
+    const fetchStorage = async () => {
+      const info = await vfs.getQuota();
+      setStorageInfo(info);
+    };
+    fetchStorage();
+    const interval = setInterval(fetchStorage, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   const toggleFeature = (key: keyof typeof settings) => {
     if (typeof settings[key] === 'boolean') {
@@ -113,6 +133,45 @@ export const SettingsTab: React.FC = () => {
               </div>
               <div className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-[9px] font-bold text-emerald-400 uppercase">Secure</div>
             </div>
+          </div>
+        </div>
+
+        {/* VFS Storage */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-amber-400">
+            <Database size={18} />
+            <h3 className="text-sm font-bold uppercase tracking-widest">VFS Storage</h3>
+          </div>
+          
+          <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/60 font-bold">Storage Usage</span>
+                <span className="text-amber-400 font-mono">{formatBytes(storageInfo.usage)} / {formatBytes(storageInfo.quota || 5 * 1024 * 1024 * 1024)}</span>
+              </div>
+              <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-amber-500 transition-all duration-500" 
+                  style={{ width: `${Math.min(100, (storageInfo.usage / (storageInfo.quota || 5 * 1024 * 1024 * 1024)) * 100)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-white/40 italic">
+                VFS storage is powered by IndexedDB, supporting projects up to 5GB+.
+              </p>
+            </div>
+            
+            <button 
+              onClick={async () => {
+                if (confirm("Are you sure you want to clear all local VFS data? This will not affect server files.")) {
+                  await vfs.clearAll();
+                  const info = await vfs.getQuota();
+                  setStorageInfo(info);
+                }
+              }}
+              className="w-full py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-bold text-red-400 uppercase hover:bg-red-500/20 transition-all"
+            >
+              Clear Local VFS Cache
+            </button>
           </div>
         </div>
 
